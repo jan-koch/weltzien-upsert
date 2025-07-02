@@ -199,6 +199,24 @@ class CollectionInfoResponse(BaseModel):
     sample_documents: List[Dict[str, Any]] = Field(..., description="Sample documents from the collection")
     timestamp: str = Field(..., description="Timestamp when the info was retrieved")
 
+class QueryRequest(BaseModel):
+    query_text: str = Field(..., min_length=1, max_length=50000, description="Text to search for similar documents")
+    n_results: Optional[int] = Field(default=5, ge=1, le=50, description="Number of results to return (1-50)")
+    where: Optional[Dict[str, Any]] = Field(default=None, description="Metadata filter conditions")
+    
+    @validator('query_text')
+    def validate_query_text(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Query text cannot be empty or whitespace only')
+        return v.strip()
+
+class QueryResponse(BaseModel):
+    query_text: str = Field(..., description="The original query text")
+    results_found: int = Field(..., description="Number of results returned")
+    results: List[Dict[str, Any]] = Field(..., description="Search results with documents, metadata, and similarity scores")
+    processing_time_ms: float = Field(..., description="Processing time in milliseconds")
+    timestamp: str = Field(..., description="Query timestamp")
+
 @app.post("/upsert-text", response_model=UpsertResponse)
 async def upsert_text(request: UpsertTextRequest, token: str = Depends(verify_token)):
     start_time = time.time()
@@ -366,6 +384,98 @@ async def get_collection_info(token: str = Depends(verify_token)):
             detail="Internal server error"
         )
 
+@app.post("/query", response_model=QueryResponse)
+async def query_documents(request: QueryRequest, token: str = Depends(verify_token)):
+    """Query ChromaDB collection for similar documents to validate ingestion"""
+    start_time = time.time()
+    
+    try:
+        # Validate services are initialized
+        if not all([client, collection, embeddings]):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Services not properly initialized"
+            )
+
+        query_text = request.query_text
+        n_results = request.n_results
+        where_filter = request.where
+
+        # Generate embedding for query
+        try:
+            query_embedding = embeddings.embed_query(query_text)
+        except Exception as e:
+            logger.error(f"OpenAI embedding error for query: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to generate query embedding"
+            )
+
+        # Query ChromaDB
+        try:
+            query_params = {
+                "query_embeddings": [query_embedding],
+                "n_results": n_results
+            }
+            
+            if where_filter:
+                query_params["where"] = where_filter
+            
+            results = collection.query(**query_params)
+        except ChromaError as e:
+            logger.error(f"ChromaDB query error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to query vector database"
+            )
+
+        # Format results
+        formatted_results = []
+        if results and 'ids' in results and results['ids']:
+            for i, doc_id in enumerate(results['ids'][0]):
+                result_item = {
+                    "id": doc_id,
+                    "document": results.get('documents', [[]])[0][i] if i < len(results.get('documents', [[]])[0]) else None,
+                    "metadata": results.get('metadatas', [[]])[0][i] if i < len(results.get('metadatas', [[]])[0]) else None,
+                    "distance": results.get('distances', [[]])[0][i] if i < len(results.get('distances', [[]])[0]) else None
+                }
+                
+                # Calculate similarity score (1 - distance for cosine distance)
+                if result_item["distance"] is not None:
+                    result_item["similarity_score"] = round(1 - result_item["distance"], 4)
+                
+                formatted_results.append(result_item)
+
+        processing_time = (time.time() - start_time) * 1000
+        
+        logger.info(
+            f"Query completed - Query: '{query_text[:50]}...', "
+            f"Results: {len(formatted_results)}, "
+            f"Processing time: {processing_time:.2f}ms"
+        )
+
+        return QueryResponse(
+            query_text=query_text,
+            results_found=len(formatted_results),
+            results=formatted_results,
+            processing_time_ms=round(processing_time, 2),
+            timestamp=time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        processing_time = (time.time() - start_time) * 1000
+        logger.error(
+            f"Unexpected error during query: {e}, "
+            f"Processing time: {processing_time:.2f}ms", 
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
 @app.get("/")
 async def root():
     """Root endpoint with API information"""
@@ -374,6 +484,7 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "POST /upsert-text": "Embed text and upsert to ChromaDB",
+            "POST /query": "Query ChromaDB for similar documents",
             "GET /collection-info": "Get collection details and sample documents",
             "GET /health": "Health check",
             "GET /docs": "API documentation" + (" (auth required)" if DOCS_REQUIRE_AUTH else "")
