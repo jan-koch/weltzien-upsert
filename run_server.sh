@@ -43,7 +43,7 @@ fi
 # Function to install dependencies
 install_deps() {
     echo -e "${BLUE}📦 Installing dependencies...${NC}"
-    pip install fastapi uvicorn langchain openai chromadb python-dotenv
+    pip install fastapi uvicorn langchain langchain-community langchain-openai openai chromadb python-dotenv
     echo -e "${GREEN}✅ Dependencies installed successfully!${NC}"
 }
 
