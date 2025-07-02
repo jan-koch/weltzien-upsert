@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token eyJhIjoiNzFhMjZkYzRjNjJjZjlhYTY2OGQ1OWEzOWI1ODZiZjUiLCJ0IjoiMTQyYTE4ZTYtNDVlZC00ZGQwLWExNzctMzVmZjQzNTdjMjk0IiwicyI6Ik5XRmtZVEF3TldNdE56Rm1ZeTAwWldVMUxXRmtNRE10WTJKaFlqRmhORE5sWVRNNSJ9
+    network_mode: host
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:8088/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
