@@ -13,7 +13,9 @@ import chromadb
 from chromadb.errors import ChromaError
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load environment variables - .env.local takes precedence over .env
+load_dotenv()  # Load .env first
+load_dotenv(".env.local", override=True)  # Then override with .env.local if it exists
 
 # Configure structured logging for production
 logging.basicConfig(
