@@ -21,6 +21,7 @@ The application requires these environment variables (configured in `.env` or `.
 - `CHROMA_BEARER_TOKEN`: Authentication token for ChromaDB
 - `CHROMA_COLLECTION_NAME`: Collection name in ChromaDB (default: weltzien_dms)
 - `API_BEARER_TOKEN`: Bearer token for API authentication (protects endpoints from abuse)
+- `DOCS_REQUIRE_AUTH`: Whether docs endpoint requires authentication (default: true)
 
 **Note**: `.env.local` takes precedence over `.env` if both files exist, allowing for local development overrides.
 
@@ -49,7 +50,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8088
   - Returns: `{"collection_name": "string", "document_count": 123, "sample_documents": [...], "timestamp": "..."}`
 - `GET /health`: Health check endpoint for monitoring service status (no auth required)
 - `GET /`: Root endpoint with API information (no auth required)
-- `GET /docs`: Auto-generated API documentation (no auth required)
+- `GET /docs`: Auto-generated API documentation (auth required by default, configurable via DOCS_REQUIRE_AUTH)
 
 ## Authentication & Security
 
@@ -59,6 +60,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8088
 - **ChromaDB connection**: Uses bearer token authentication for remote ChromaDB access
 - **SSL enabled**: ChromaDB connection uses SSL for secure communication
 - **Network security**: Server only listens on localhost (127.0.0.1) for additional security
+- **Documentation security**: `/docs` endpoint requires authentication by default (set `DOCS_REQUIRE_AUTH=false` to disable)
 - **Environment variables**: All required tokens and keys are validated at startup
 
 ## Metadata Handling

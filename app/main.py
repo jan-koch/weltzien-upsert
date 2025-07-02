@@ -2,8 +2,10 @@ import os
 import time
 import hashlib
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, status, Depends
+from fastapi import FastAPI, HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, List
@@ -33,6 +35,7 @@ CHROMA_REMOTE_URL = os.getenv("CHROMA_REMOTE_URL", "https://cdb.kobra-dataworks.
 CHROMA_BEARER_TOKEN = os.getenv("CHROMA_BEARER_TOKEN")
 CHROMA_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "weltzien_dms")
 API_BEARER_TOKEN = os.getenv("API_BEARER_TOKEN")
+DOCS_REQUIRE_AUTH = os.getenv("DOCS_REQUIRE_AUTH", "true").lower() == "true"
 
 if not OPENAI_API_KEY:
     logger.error("OPENAI_API_KEY environment variable is not set.")
@@ -153,7 +156,9 @@ app = FastAPI(
     title="Text Embedding and Vector Upsert API",
     description="API for embedding text using OpenAI and upserting vectors to ChromaDB",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url=None,  # Disable default docs
+    redoc_url=None  # Disable redoc
 )
 
 # Add CORS middleware for production
@@ -371,6 +376,19 @@ async def root():
             "POST /upsert-text": "Embed text and upsert to ChromaDB",
             "GET /collection-info": "Get collection details and sample documents",
             "GET /health": "Health check",
-            "GET /docs": "API documentation"
+            "GET /docs": "API documentation" + (" (auth required)" if DOCS_REQUIRE_AUTH else "")
         }
     }
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html(request: Request, token: str = Depends(verify_token) if DOCS_REQUIRE_AUTH else None):
+    """Custom docs endpoint with optional authentication"""
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title=app.title + " - Docs",
+    )
+
+@app.get("/openapi.json", include_in_schema=False)
+async def get_open_api_endpoint(token: str = Depends(verify_token) if DOCS_REQUIRE_AUTH else None):
+    """OpenAPI schema endpoint with optional authentication"""
+    return get_openapi(title=app.title, version=app.version, routes=app.routes)
