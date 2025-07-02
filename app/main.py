@@ -7,9 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, List
 import logging
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 import chromadb
-from chromadb.config import Settings
 from chromadb.errors import ChromaError
 from dotenv import load_dotenv
 
@@ -44,13 +43,6 @@ client = None
 collection = None
 embeddings = None
 
-# Bearer token authentication class
-class BearerAuthHeaders:
-    def __init__(self, token: str):
-        self.token = token
-
-    def __call__(self):
-        return {"Authorization": f"Bearer {self.token}"}
 
 async def initialize_services():
     """Initialize ChromaDB client and OpenAI embeddings"""
@@ -61,16 +53,12 @@ async def initialize_services():
         embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
         
         # Initialize Chroma client
-        auth_headers = BearerAuthHeaders(CHROMA_BEARER_TOKEN)
-        client = chromadb.Client(
-            Settings(
-                chroma_api_impl="rest",
-                chroma_server_host=CHROMA_REMOTE_URL.replace("https://", "").replace("http://", ""),
-                chroma_server_http_port=443,
-                chroma_server_ssl_enabled=True,
-                chroma_api_key=None,
-                chroma_headers=auth_headers(),
-            )
+        auth_headers = {"Authorization": f"Bearer {CHROMA_BEARER_TOKEN}"}
+        client = chromadb.HttpClient(
+            host=CHROMA_REMOTE_URL.replace("https://", "").replace("http://", ""),
+            port=443,
+            ssl=True,
+            headers=auth_headers
         )
         
         # Test connection and get/create collection
