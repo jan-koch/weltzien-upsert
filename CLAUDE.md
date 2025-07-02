@@ -15,12 +15,14 @@ This is a FastAPI application that provides a REST API for embedding text using 
 
 ## Required Environment Variables
 
-The application requires these environment variables (configured in `.env`):
+The application requires these environment variables (configured in `.env` or `.env.local`):
 - `OPENAI_API_KEY`: OpenAI API key for embeddings
 - `CHROMA_REMOTE_URL`: ChromaDB server URL (default: https://cdb.kobra-dataworks.de)
 - `CHROMA_BEARER_TOKEN`: Authentication token for ChromaDB
 - `CHROMA_COLLECTION_NAME`: Collection name in ChromaDB (default: weltzien_dms)
 - `API_BEARER_TOKEN`: Bearer token for API authentication (protects endpoints from abuse)
+
+**Note**: `.env.local` takes precedence over `.env` if both files exist, allowing for local development overrides.
 
 ## Running the Application
 
