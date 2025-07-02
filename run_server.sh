@@ -54,16 +54,16 @@ run_dev() {
     echo "API docs will be available at: http://localhost:8088/docs"
     echo "Press Ctrl+C to stop the server"
     echo ""
-    uvicorn app.main:app --reload --host 0.0.0.0 --port 8088
+    uvicorn app.main:app --reload --host 127.0.0.1 --port 8088
 }
 
 # Function to run production server
 run_prod() {
     echo -e "${BLUE}🚀 Starting production server...${NC}"
-    echo "Server will be available at: http://0.0.0.0:8088"
+    echo "Server will be available at: http://127.0.0.1:8088"
     echo "Press Ctrl+C to stop the server"
     echo ""
-    uvicorn app.main:app --host 0.0.0.0 --port 8088 --workers 4
+    uvicorn app.main:app --host 127.0.0.1 --port 8088 --workers 4
 }
 
 # Function to test the API
